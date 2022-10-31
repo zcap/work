@@ -2,6 +2,8 @@ package com.ctrip.dcs.recommendation.query.interfaces.converter;
 
 import org.apache.commons.collections.CollectionUtils;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -115,8 +117,10 @@ public class Pokemon {
         IntStream.range(0, SZ.length - 1).forEach(i -> IntStream.range(i + 1, SZ.length).forEach(j ->
                 putScoreMap(defenseScoreMap, Arrays.stream(SZ).map(s -> s[i] * s[j]).map(DAMAGE_MAP::get).mapToInt(Integer::intValue).sum(), i, j))
         );
-        // 3.输出防御优势得分
-        printResult("防御属性优势", defenseScoreMap);
+        // 3.线性归一化
+        Map<BigDecimal, List<String>> normalizationDefenseScoreMap = normalization(defenseScoreMap);
+        // 4.输出防御优势得分
+        printResult("防御属性优势", normalizationDefenseScoreMap);
 
         // 计算攻击优势
         /**
@@ -128,8 +132,10 @@ public class Pokemon {
         IntStream.range(0, SZ.length).forEach(i ->
                 putScoreMap(attackScoreMap, Arrays.stream(SZ[i]).map(DAMAGE_MAP::get).mapToInt(score -> (int) score).sum() * -1, i)
         );
-        // 2.输出攻击优势得分
-        printResult("攻击属性优势", attackScoreMap);
+        // 2.线性归一化
+        Map<BigDecimal, List<String>> normalizationAttackScoreMap = normalization(attackScoreMap);
+        // 3.输出攻击优势得分
+        printResult("攻击属性优势", normalizationAttackScoreMap);
     }
 
     private static void putScoreMap(Map<Integer, List<String>> scoreMap, int score, int... indexes) {
@@ -141,8 +147,16 @@ public class Pokemon {
         keys.add(Arrays.stream(indexes).mapToObj(INDEX_2_ATTRIBUTE_MAP::get).collect(Collectors.joining("-")));
     }
 
-    private static void printResult(String title, Map<Integer, List<String>> scoreMap) {
+    private static Map<BigDecimal, List<String>> normalization(Map<Integer, List<String>> scoreMap) {
+        BigDecimal max = scoreMap.keySet().stream().max(Integer::compareTo).map(BigDecimal::new).orElse(BigDecimal.ZERO);
+        BigDecimal min = scoreMap.keySet().stream().min(Integer::compareTo).map(BigDecimal::new).orElse(BigDecimal.ZERO);
+        BigDecimal gap = max.subtract(min);
+        return scoreMap.entrySet().stream()
+                .collect(Collectors.toMap(entry -> new BigDecimal(entry.getKey()).subtract(min).divide(gap, 80, RoundingMode.HALF_UP), Map.Entry::getValue, (v1, v2) -> v1, TreeMap::new));
+    }
+
+    private static void printResult(String title, Map<BigDecimal, List<String>> normalizationScoreMap) {
         System.out.println("--------------------" + title + "--------------------");
-        scoreMap.forEach((score, keys) -> System.out.println("得分：" + score + ",属性：" + keys));
+        normalizationScoreMap.forEach((score, keys) -> System.out.println("得分：" + score + ",属性：" + keys));
     }
 }
