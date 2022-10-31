@@ -4,7 +4,6 @@ import org.apache.commons.collections.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -18,12 +17,12 @@ public class Pokemon {
      * 站在防御方的受到伤害的倍数角度的分数
      * 攻击方的分数只需要将防御方分数乘-1即可
      */
-    private final static Map<Double, Integer> DAMAGE_MAP = new HashMap<>();
+    private final static Map<Double, Integer> DAMAGE_MAP = new TreeMap<>();
 
     /**
      * 属性的坐标
      */
-    private final static Map<Integer, String> INDEX_2_ATTRIBUTE_MAP = new HashMap<>();
+    private final static Map<Integer, String> INDEX_2_ATTRIBUTE_MAP = new TreeMap<>();
 
     /**
      * 属性相克表，横轴为防御方，竖轴为攻击方
@@ -90,6 +89,18 @@ public class Pokemon {
 
 
     public static void main(String[] args) {
+        // 输出当前防御方倍数对应的分数
+        System.out.println("--------------------当前防御倍数和分数对应表--------------------");
+        DAMAGE_MAP.forEach((damage, score) -> System.out.println("受到伤害的倍数：" + damage + "，分数：" + score));
+
+        // 输出当前攻击方倍数对应的分数
+        System.out.println("--------------------当前攻击倍数和分数对应表--------------------");
+        DAMAGE_MAP.forEach((damage, score) -> System.out.println("攻击造成的倍数：" + damage + "，分数：" + -score));
+
+        // 输出原始的属性克制表
+        System.out.println("--------------------当前属性克制表--------------------");
+        Arrays.stream(SZ).forEach(s -> System.out.println(Arrays.toString(s)));
+
         // 计算防御优势
         /**
          * key：分数
