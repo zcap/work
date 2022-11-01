@@ -120,6 +120,10 @@ public class Pokemon {
         System.out.println("--------------------当前属性克制表--------------------");
         Arrays.stream(SZ).forEach(s -> System.out.println(Arrays.toString(s)));
 
+        // 输出攻击对防御相对系数
+        System.out.println("--------------------当前攻击分数和防御分数的比例--------------------");
+        System.out.println(ATTACK_COEFFICIENT);
+
         // 计算防御优势
         /**
          * key：分数
