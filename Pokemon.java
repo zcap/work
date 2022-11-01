@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -13,6 +14,16 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class Pokemon {
+
+    /**
+     * 属性连接符
+     */
+    private final static String ATTRIBUTE_LINK = "-";
+
+    /**
+     * 分数的保留小数位
+     */
+    private final static int SCORE_SCALE = 28;
 
     /**
      * 伤害倍数对应的分数
@@ -51,6 +62,12 @@ public class Pokemon {
             {2, 1, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 4, 2, 2, 1, 1},
             {2, 4, 2, 1, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 4, 4, 2},
     };
+
+    /**
+     * 攻击相对防御的系数
+     * 计算综合得分的时候，攻击得分需要乘此值
+     */
+    private final static BigDecimal ATTACK_COEFFICIENT = new BigDecimal("0.75");
 
     static {
         // 初始化伤害分数
@@ -129,22 +146,68 @@ public class Pokemon {
          */
         Map<Integer, List<String>> attackScoreMap = new TreeMap<>();
         // 1.计算单属性分数
-        IntStream.range(0, SZ.length).forEach(i ->
-                putScoreMap(attackScoreMap, Arrays.stream(SZ[i]).map(DAMAGE_MAP::get).mapToInt(score -> (int) score).sum() * -1, i)
+        IntStream.range(0, SZ.length).forEach(i -> putScoreMap(
+                attackScoreMap,
+                (
+                        Arrays.stream(SZ[i]).map(DAMAGE_MAP::get).mapToInt(s -> (int) s).sum() +
+                                IntStream.range(0, SZ.length - 1)
+                                        .map(j -> IntStream.range(j + 1, SZ.length)
+                                                .map(k -> DAMAGE_MAP.get(SZ[i][j] * SZ[i][k]))
+                                                .sum()
+                                        )
+                                        .sum()
+                ) * -1,
+                i)
         );
         // 2.线性归一化
         Map<BigDecimal, List<String>> normalizationAttackScoreMap = normalization(attackScoreMap);
         // 3.输出攻击优势得分
         printResult("攻击属性优势", normalizationAttackScoreMap);
+
+        // 精灵属性计算综合得分
+        /**
+         * 1.攻击优势映射分数转换
+         * key:属性 value：攻击分数
+         */
+        Map<String, BigDecimal> normalizationAttributeAttackScoreMap = new HashMap<>();
+        normalizationAttackScoreMap.forEach((score, attributes) -> attributes.forEach(attribute -> normalizationAttributeAttackScoreMap.put(attribute, score)));
+        /**
+         * 2.计算属性综合得分
+         */
+        Map<BigDecimal, List<String>> normalizationAttributeScoreMap = new TreeMap<>();
+        normalizationDefenseScoreMap.forEach((score, attributes) -> attributes.forEach(attributeStr -> {
+            String[] as = attributeStr.split(ATTRIBUTE_LINK);
+            putScoreMap(normalizationAttributeScoreMap,
+                    score.add(
+                            Arrays.stream(as)
+                                    .map(normalizationAttributeAttackScoreMap::get)
+                                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                                    .divide(new BigDecimal(as.length), SCORE_SCALE, RoundingMode.HALF_UP)
+                                    .multiply(ATTACK_COEFFICIENT)
+                    ),
+                    attributeStr);
+        }));
+        // 3.输出属性综合得分
+        printResult("属性综合排名", normalizationAttributeScoreMap);
     }
 
     private static void putScoreMap(Map<Integer, List<String>> scoreMap, int score, int... indexes) {
+        List<String> keys = gainKeys(scoreMap, score);
+        keys.add(Arrays.stream(indexes).mapToObj(INDEX_2_ATTRIBUTE_MAP::get).collect(Collectors.joining(ATTRIBUTE_LINK)));
+    }
+
+    private static void putScoreMap(Map<BigDecimal, List<String>> scoreMap, BigDecimal score, String attributeStr) {
+        List<String> keys = gainKeys(scoreMap, score);
+        keys.add(attributeStr);
+    }
+
+    private static <T extends Number> List<String> gainKeys(Map<T, List<String>> scoreMap, T score) {
         List<String> keys = scoreMap.get(score);
         if (CollectionUtils.isEmpty(keys)) {
             keys = new ArrayList<>();
             scoreMap.put(score, keys);
         }
-        keys.add(Arrays.stream(indexes).mapToObj(INDEX_2_ATTRIBUTE_MAP::get).collect(Collectors.joining("-")));
+        return keys;
     }
 
     private static Map<BigDecimal, List<String>> normalization(Map<Integer, List<String>> scoreMap) {
@@ -152,7 +215,7 @@ public class Pokemon {
         BigDecimal min = scoreMap.keySet().stream().min(Integer::compareTo).map(BigDecimal::new).orElse(BigDecimal.ZERO);
         BigDecimal gap = max.subtract(min);
         return scoreMap.entrySet().stream()
-                .collect(Collectors.toMap(entry -> new BigDecimal(entry.getKey()).subtract(min).divide(gap, 80, RoundingMode.HALF_UP), Map.Entry::getValue, (v1, v2) -> v1, TreeMap::new));
+                .collect(Collectors.toMap(entry -> new BigDecimal(entry.getKey()).subtract(min).divide(gap, SCORE_SCALE, RoundingMode.HALF_UP), Map.Entry::getValue, (v1, v2) -> v1, TreeMap::new));
     }
 
     private static void printResult(String title, Map<BigDecimal, List<String>> normalizationScoreMap) {
